@@ -36,6 +36,30 @@ public:
     bool loadPolicy(const std::string& policy_path);
     Vec16<double> desired_positions;
 private:
+
+    // POLICY_OBS_SCALES = {
+    //     "base_lin_vel": 2.0,
+    //     "base_ang_vel": 0.25,
+    //     "projected_gravity": 1.0,
+    //     "velocity_commands": 1.0,
+    //     "joint_pos": 1.0,
+    //     "joint_vel": 0.05,
+    //     "actions_leg_position": 0.25,
+    //     "actions_wheel_velocity": 1.5
+    // };
+
+    double s_obs_base_lin_vel = 2.0;
+    double s_obs_base_ang_vel = 0.25;
+    double s_obs_projected_gravity = 1.0;
+    double s_obs_velocity_commands = 1.0;
+    double s_obs_joint_pos = 1.0;
+    double s_obs_joint_vel = 0.05;
+
+    double s_act_joint_position = 0.25;
+    double s_act_wheel_velocity=1.5;
+
+    int dof_obs_ = 41;
+
     bool initialized_ = false;
     bool running_ = false;
     Vec16<double> last_action=Vec16<double>::Zero(); // Stores the last action taken by the controller
@@ -51,6 +75,21 @@ private:
         0.0,  0.7, -1.6, // LH leg
         0.0,  -0.7, 1.6 // RH leg
     ).finished();
+
+    Vec12<double> default_dof_pos_reorder_ = (Vec12<double>() << 
+        0.0,  0.2, -1.2,  // LF leg (hip, thigh, calf)
+        0.0,  -0.2, 1.2,  // LH leg 
+        0.0,  0.2, -1.2,  // RF leg
+        0.0,  -0.2, 1.2   // RH leg
+    ).finished();
+
+    Vec12<double> default_dof_pos_obs_reorder_ = (Vec12<double>() << 
+        0.0,  0.2, -1.2,  // LF leg (hip, thigh, calf)
+        0.0,  -0.2, 1.2,  // LH leg 
+        0.0,  0.2, -1.2,  // RF leg
+        0.0,  -0.2, 1.2   // RH leg
+    ).finished();
+
     Vec4<double> leg_theta;
     double time = 0.0;
     Eigen::Matrix<double, 8, 1, Eigen::DontAlign> leg_xy;

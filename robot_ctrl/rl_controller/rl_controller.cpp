@@ -8,13 +8,22 @@ bool RLController::init() {
     leg_theta.setZero();
     last_action.setZero();
     step_counter = 0;
+    s_obs_base_lin_vel = 2.0;
+    s_obs_base_ang_vel = 0.25;
+    s_obs_projected_gravity = 1.0;
+    s_obs_velocity_commands = 1.0;
+    s_obs_joint_pos = 1.0;
+    s_obs_joint_vel = 0.05;
+
+    s_act_joint_position = 0.25;
+    s_act_wheel_velocity=1.5;
 
     for(int i = 0; i < 4; i++) {
         leg_theta[i] = gait_schedule[i];
     }
     initialized_ = true;
     running_ = false;
-    loadPolicy("../models/policy_whl_1.onnx");
+    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_tty_box_0830_1308.onnx");
     std::cout << "Policy Loaded" << std::endl;
 
     return true;
@@ -89,19 +98,29 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // 6. Leg phase angles in x-y coordinates (8)
         
 
-        observation.segment<3>(0) = body_ang_vel*0.25;
-        observation.segment<3>(3) = projected_gravity;
-        observation.segment<3>(6) = vel_commands.cwiseProduct(Vec3<double>(2.0, 2.0, 0.25));
-        // observation[9] = *stand_flag;
-        observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs)*1.0;
-        observation.segment<4>(21) = reordered_vels*0.05;
-        observation.segment<16>(25) = last_action;
+        // observation.segment<3>(0) = body_ang_vel*0.25;
+        // observation.segment<3>(3) = projected_gravity;
+        // observation.segment<3>(6) = vel_commands.cwiseProduct(Vec3<double>(2.0, 2.0, 0.25));
+        // // observation[9] = *stand_flag;
+        // observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs)*1.0;
+        // observation.segment<4>(21) = reordered_vels*0.05;
+        // observation.segment<16>(25) = last_action;
         // observation.segment<8>(41) = leg_xy * 0.1;
 
-        for(int i = 0; i < 4; i++) {
-        observation[41 + i*2] = leg_xy[2*i]*0.1; // x coordinate
-        observation[42 + i*2] = leg_xy[2*i+1]*0.1; // y coordinate
-        }
+
+        // observation.segment<3>(0) = body_lin_vel * POLICY_OBS_SCALES ["base_lin_vel"];
+        observation.segment<3>(0) = body_ang_vel * s_obs_base_ang_vel;
+        observation.segment<3>(3) = projected_gravity * s_obs_projected_gravity;
+        observation.segment<3>(6) = vel_commands * s_obs_velocity_commands;
+        // observation[9] = *stand_flag;
+        observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs_reorder_) * s_obs_joint_pos;
+        observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
+        observation.segment<16>(25) = last_action;
+
+        // for(int i = 0; i < 4; i++) {
+        // observation[41 + i*2] = leg_xy[2*i]*0.1; // x coordinate
+        // observation[42 + i*2] = leg_xy[2*i+1]*0.1; // y coordinate
+        // }
     
 
         // Store current observation in history buffer
@@ -109,41 +128,41 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
 
         // We maintain 5 steps of history
         // Shift history left by one step
-        for(int j = 0; j < num_history_steps-1; j++) {
-            for(int i = 0; i < observation.size(); i++) {
-                observation_history[j*observation.size() + i] = observation_history[(j+1)*observation.size() + i];
-            }
-        }
-        if(step_counter <= num_history_steps) {
-            // Fill all history steps with current observation during initialization
-            for(int j = 0; j < num_history_steps; j++) {
-                for(int i = 0; i < observation.size(); i++) {
-                    observation_history[j*observation.size() + i] = observation[i];
-                }
-            }
-        }
-        // Add new observation at the end
-        for(int i = 0; i < observation.size(); i++) {
-            observation_history[(num_history_steps-1)*observation.size() + i] = observation[i];
-        }
+        // for(int j = 0; j < num_history_steps-1; j++) {
+        //     for(int i = 0; i < observation.size(); i++) {
+        //         observation_history[j*observation.size() + i] = observation_history[(j+1)*observation.size() + i];
+        //     }
+        // }
+        // if(step_counter <= num_history_steps) {
+        //     // Fill all history steps with current observation during initialization
+        //     for(int j = 0; j < num_history_steps; j++) {
+        //         for(int i = 0; i < observation.size(); i++) {
+        //             observation_history[j*observation.size() + i] = observation[i];
+        //         }
+        //     }
+        // }
+        // // Add new observation at the end
+        // for(int i = 0; i < observation.size(); i++) {
+        //     observation_history[(num_history_steps-1)*observation.size() + i] = observation[i];
+        // }
 
         // Prepare input tensors for ONNX model
-        std::vector<float> obs_tensor_values(41);
-        std::vector<float> obs_history_tensor_values(245);
+        std::vector<float> obs_tensor_values(dof_obs_);
+        // std::vector<float> obs_history_tensor_values(245);
         
         // Current observation (49 values)
-        for (int i = 0; i < 41; i++) {
+        for (int i = 0; i < dof_obs_; i++) {
             obs_tensor_values[i] = static_cast<float>(observation[i]);
         }
         
         // Observation history (245 values)
-        for (int i = 0; i < 245; i++) {
-            obs_history_tensor_values[i] = static_cast<float>(observation_history[i]);
-        }
+        // for (int i = 0; i < 245; i++) {
+        //     obs_history_tensor_values[i] = static_cast<float>(observation_history[i]);
+        // }
         
         // Define input shapes
-        std::vector<int64_t> obs_shape = {1, 49};
-        std::vector<int64_t> obs_history_shape = {1, 245};
+        std::vector<int64_t> obs_shape = {1, dof_obs_};
+        // std::vector<int64_t> obs_history_shape = {1, 245};
         
         Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         
@@ -187,24 +206,23 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         //calculate the desire pos:
         // Scale actions and add default positions to get full joint commands
         Vec16<double> scaled_actions;
-        for (int i = 0; i < 16; i++) {
-            if (i == 3 || i == 7 || i == 11 || i == 15) {
-                scaled_actions[i] = last_action[i] * 10.0 + default_dof_pos[i]; // Assuming action_scale is 10.0, adjust if needed
-            }
-            else {
-                scaled_actions[i] = last_action[i] * 0.5 + default_dof_pos[i]; // Assuming action_scale is 0.5, adjust if needed
-            }
+        for (int i = 0; i < 12; i++) {
+            scaled_actions[i] = last_action[i] * s_act_joint_position + default_dof_pos_reorder_[i]; // Assuming action_scale is 0.5, adjust if needed
+        }
+
+        for (int i = 12; i < 16; i++) {
+            scaled_actions[i] = last_action[i] * s_act_wheel_velocity; // Assuming action_scale is 0.5, adjust if needed
         }
 
         // tweak order:
-        desired_positions.segment<3>(0) = scaled_actions.segment<3>(8);  // FR leg
+        desired_positions.segment<3>(0) = scaled_actions.segment<3>(6);  // FR leg
         desired_positions.segment<3>(3) = scaled_actions.segment<3>(0);  // FL leg
-        desired_positions.segment<3>(6) = scaled_actions.segment<3>(12);  // RR leg
-        desired_positions.segment<3>(9) = scaled_actions.segment<3>(4);  // RL leg
-        desired_positions[12] = scaled_actions[11];  // whl
-        desired_positions[13] = scaled_actions[3];
+        desired_positions.segment<3>(6) = scaled_actions.segment<3>(9);  // RR leg
+        desired_positions.segment<3>(9) = scaled_actions.segment<3>(3);  // RL leg
+        desired_positions[12] = scaled_actions[14];  // whl
+        desired_positions[13] = scaled_actions[12];
         desired_positions[14] = scaled_actions[15];
-        desired_positions[15] = scaled_actions[7];
+        desired_positions[15] = scaled_actions[13];
         // desired_positions.segment<3>(0) = default_dof_pos.segment<3>(8);  // FR leg
         // desired_positions.segment<3>(3) = default_dof_pos.segment<3>(0);  // FL leg
         // desired_positions.segment<3>(6) = default_dof_pos.segment<3>(12);  // RR leg

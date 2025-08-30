@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
 #elif defined DG_ENGINEER
     std::string model_name = "../robot/robot_model/dg_engineer/scene.xml";
 #elif defined SIRIUS_WHEEL
-    std::string model_name = "../robot/robot_model/sirius_wheel/scene.xml";
+    std::string model_name = "/home/ray/software/repositories/dg_fsm_whl/robot/robot_model/sirius_wheel/scene.xml";
 #endif
     bool b_sub_real_imu = false;
     bool b_sub_usb2can = false;
