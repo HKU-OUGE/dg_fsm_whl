@@ -179,13 +179,26 @@ namespace usb_controller {
             }
         }
         if (rc_control_.mode == RL_WALK || rc_control_.mode == RL_WALK_2) {
-            rc_control_.v_des[0] = -static_cast<float>(rc_map_.ly) / 32768;
-            rc_control_.v_des[1] = -static_cast<float>(rc_map_.lx) / 32768;
-            rc_control_.v_des[2] = -static_cast<float>(rc_map_.rx) / 32768;
-            rc_control_.height_variation = -static_cast<float>(rc_map_.ly) / 32768;
+            rc_control_.v_des[0] = abs(-0.6f * static_cast<float>(rc_map_.ly) / 32768);
+            rc_control_.v_des[1] = 0;
+            rc_control_.v_des[2] = -0.3f * static_cast<float>(rc_map_.rx) / 32768;
+            //
+            rc_control_.omega_des[2] = 0;
+            if (rc_map_.x) {
+                rc_control_.omega_des[2] = 0.3;
+            }
+            if (rc_map_.y) {
+                rc_control_.omega_des[2] = 0.4;
+            }
+            if (rc_map_.b) {
+                rc_control_.omega_des[2] = 0.2;
+            }
+            if (rc_map_.a) {
+                rc_control_.omega_des[2] = 0.0;
+            }
+            // rc_control_.height_variation = -static_cast<float>(rc_map_.ly) / 32768;
             rc_control_.omega_des[0] = 0;
             rc_control_.omega_des[1] = 0;
-            rc_control_.omega_des[2] = 0;
             // std::cout<<rc_map_.yy<<std::endl;
         }
         rc_control_.stand_flag = 0;

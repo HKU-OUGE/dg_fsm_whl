@@ -10,6 +10,7 @@ class RLController {
 public:
     RLController() = default;
     ~RLController() = default;
+    double terrain_height_ = 0.0;
 
     /**
      * Initialize the RL controller
@@ -58,7 +59,7 @@ private:
     double s_act_joint_position = 0.25;
     double s_act_wheel_velocity=1.5;
 
-    int dof_obs_ = 41;
+    int dof_obs_ = 42;
 
     bool initialized_ = false;
     bool running_ = false;
@@ -77,17 +78,17 @@ private:
     ).finished();
 
     Vec12<double> default_dof_pos_reorder_ = (Vec12<double>() << 
-        0.0,  0.2, -1.2,  // LF leg (hip, thigh, calf)
-        0.0,  -0.2, 1.2,  // LH leg 
-        0.0,  0.2, -1.2,  // RF leg
-        0.0,  -0.2, 1.2   // RH leg
+    0.0,  0.7, -1.6,  // LF leg (hip, thigh, calf)
+    0.0,  -0.7, 1.6,  // LH leg
+    0.0,  0.7, -1.6,  // RF leg
+    0.0,  -0.7, 1.6   // RH leg
     ).finished();
 
     Vec12<double> default_dof_pos_obs_reorder_ = (Vec12<double>() << 
-        0.0,  0.2, -1.2,  // LF leg (hip, thigh, calf)
-        0.0,  -0.2, 1.2,  // LH leg 
-        0.0,  0.2, -1.2,  // RF leg
-        0.0,  -0.2, 1.2   // RH leg
+    0.0,  0.7, -1.6,  // LF leg (hip, thigh, calf)
+    0.0,  -0.7, 1.6,  // LH leg
+    0.0,  0.7, -1.6,  // RF leg
+    0.0,  -0.7, 1.6   // RH leg
     ).finished();
 
     Vec4<double> leg_theta;
@@ -102,6 +103,7 @@ private:
     std::unique_ptr<Ort::Env> env_;
     std::unique_ptr<Ort::SessionOptions> session_options_;
     std::unique_ptr<Ort::Session> session_;
+
 
     uint64_t step_counter = 0;
 };

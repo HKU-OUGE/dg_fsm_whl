@@ -23,7 +23,7 @@ bool RLController::init() {
     }
     initialized_ = true;
     running_ = false;
-    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_tty_box_0830_1308.onnx");
+    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_height_6.onnx");
     std::cout << "Policy Loaded" << std::endl;
 
     return true;
@@ -116,7 +116,9 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs_reorder_) * s_obs_joint_pos;
         observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
         observation.segment<16>(25) = last_action;
-
+        observation(41) = terrain_height_;
+        // std::cout << "terrain_height: " <<terrain_height_<< std::endl;
+        // std::cout.flush();
         // for(int i = 0; i < 4; i++) {
         // observation[41 + i*2] = leg_xy[2*i]*0.1; // x coordinate
         // observation[42 + i*2] = leg_xy[2*i+1]*0.1; // y coordinate
@@ -207,22 +209,36 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // Scale actions and add default positions to get full joint commands
         Vec16<double> scaled_actions;
         for (int i = 0; i < 12; i++) {
-            scaled_actions[i] = last_action[i] * s_act_joint_position + default_dof_pos_reorder_[i]; // Assuming action_scale is 0.5, adjust if needed
+            scaled_actions[i] = last_action[i] * s_act_joint_position; // Assuming action_scale is 0.5, adjust if needed
+            scaled_actions[i] = std::clamp(scaled_actions[i], -15.0, 15.0);
         }
 
         for (int i = 12; i < 16; i++) {
             scaled_actions[i] = last_action[i] * s_act_wheel_velocity; // Assuming action_scale is 0.5, adjust if needed
+            scaled_actions[i] = std::clamp(scaled_actions[i], -15.0, 15.0);
         }
 
+
+        Vec16<double> final_actions;
+        for (int i = 0; i < 12; i++) {
+            final_actions[i] = scaled_actions[i] + default_dof_pos_reorder_[i]; // Assuming action_scale is 0.5, adjust if needed
+        }
+
+        for (int i = 12; i < 16; i++) {
+            final_actions[i] = scaled_actions[i]; // Assuming action_scale is 0.5, adjust if needed
+        }
+
+
+
         // tweak order:
-        desired_positions.segment<3>(0) = scaled_actions.segment<3>(6);  // FR leg
-        desired_positions.segment<3>(3) = scaled_actions.segment<3>(0);  // FL leg
-        desired_positions.segment<3>(6) = scaled_actions.segment<3>(9);  // RR leg
-        desired_positions.segment<3>(9) = scaled_actions.segment<3>(3);  // RL leg
-        desired_positions[12] = scaled_actions[14];  // whl
-        desired_positions[13] = scaled_actions[12];
-        desired_positions[14] = scaled_actions[15];
-        desired_positions[15] = scaled_actions[13];
+        desired_positions.segment<3>(0) = final_actions.segment<3>(6);  // FR leg
+        desired_positions.segment<3>(3) = final_actions.segment<3>(0);  // FL leg
+        desired_positions.segment<3>(6) = final_actions.segment<3>(9);  // RR leg
+        desired_positions.segment<3>(9) = final_actions.segment<3>(3);  // RL leg
+        desired_positions[12] = final_actions[14];  // whl
+        desired_positions[13] = final_actions[12];
+        desired_positions[14] = final_actions[15];
+        desired_positions[15] = final_actions[13];
         // desired_positions.segment<3>(0) = default_dof_pos.segment<3>(8);  // FR leg
         // desired_positions.segment<3>(3) = default_dof_pos.segment<3>(0);  // FL leg
         // desired_positions.segment<3>(6) = default_dof_pos.segment<3>(12);  // RR leg

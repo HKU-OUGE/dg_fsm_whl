@@ -42,16 +42,17 @@ void FSM_State_RL_Walk::run_state() {
     (void) this->fsm_data_->estimators_->get_result_quat();
     (void) this->fsm_data_->estimators_->get_reult_acc_w();
     (void) this->fsm_data_->leg_controller_->leg_data[0].q(0);
+    rl_controller_->terrain_height_ = fsm_data_->rc_->rc_control_.omega_des[2];
     rl_controller_->step(&joint_q, &joint_qd, &accel, &desired_vel_xyw, &stand_flag);
     // 3. send to leg controller
     int i = 0;
     for (auto &leg: this->fsm_data_->leg_controller_->leg_command) {
-        leg.kp_joint = Vec3<double>(40, 40, 40).asDiagonal();
+        leg.kp_joint = Vec3<double>(34, 34, 34).asDiagonal();
         leg.kd_joint = Vec3<double>(2, 2, 2).asDiagonal();
         leg.q_des = Vec3<double>(rl_controller_->desired_positions[i*3], rl_controller_->desired_positions[i*3+1], rl_controller_->desired_positions[i*3+2]);
         leg.qd_des = Vec3<double>(0, 0, 0);
         leg.whl_kp_joint = 0;
-        leg.whl_kd_joint = 3.0;
+        leg.whl_kd_joint = 2.5;
         // leg.whl_qd_des = 0;
         leg.whl_qd_des = rl_controller_->desired_positions[12 + i];
         // std::cout << "leg.whl_q_des: " << leg.whl_q_des << std::endl;
