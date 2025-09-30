@@ -179,22 +179,27 @@ namespace usb_controller {
             }
         }
         if (rc_control_.mode == RL_WALK || rc_control_.mode == RL_WALK_2) {
+
             rc_control_.v_des[0] = abs(-0.6f * static_cast<float>(rc_map_.ly) / 32768);
             rc_control_.v_des[1] = 0;
             rc_control_.v_des[2] = -0.3f * static_cast<float>(rc_map_.rx) / 32768;
             //
             rc_control_.omega_des[2] = 0;
             if (rc_map_.x) {
-                rc_control_.omega_des[2] = 0.3;
+                // rc_control_.v_des[0] = 0.6f;
+                rc_control_.omega_des[2] = 0.3f;
             }
             if (rc_map_.y) {
-                rc_control_.omega_des[2] = 0.4;
+                // rc_control_.v_des[0] = 0.4f;
+                rc_control_.omega_des[2] = 0.5f;
             }
             if (rc_map_.b) {
-                rc_control_.omega_des[2] = 0.2;
+                // rc_control_.v_des[0] = 0.4f;
+                rc_control_.omega_des[2] = 0.2f;
             }
             if (rc_map_.a) {
-                rc_control_.omega_des[2] = 0.0;
+                // rc_control_.v_des[0] = 0.6f;
+                rc_control_.omega_des[2] = 0.0f;
             }
             // rc_control_.height_variation = -static_cast<float>(rc_map_.ly) / 32768;
             rc_control_.omega_des[0] = 0;

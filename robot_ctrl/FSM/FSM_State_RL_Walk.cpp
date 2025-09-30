@@ -43,12 +43,18 @@ void FSM_State_RL_Walk::run_state() {
     (void) this->fsm_data_->estimators_->get_reult_acc_w();
     (void) this->fsm_data_->leg_controller_->leg_data[0].q(0);
     rl_controller_->terrain_height_ = fsm_data_->rc_->rc_control_.omega_des[2];
+    // std::cout<<"terrain_height_ = "<<rl_controller_->terrain_height_<<std::endl;
+    // std::cout.flush();
     rl_controller_->step(&joint_q, &joint_qd, &accel, &desired_vel_xyw, &stand_flag);
     // 3. send to leg controller
     int i = 0;
     for (auto &leg: this->fsm_data_->leg_controller_->leg_command) {
-        leg.kp_joint = Vec3<double>(34, 34, 34).asDiagonal();
-        leg.kd_joint = Vec3<double>(2, 2, 2).asDiagonal();
+        leg.kp_joint = Vec3<double>(30, 30, 30).asDiagonal();
+        leg.kd_joint = Vec3<double>(2.0, 2.0, 2.0).asDiagonal();
+        // leg.kp_joint = Vec3<double>(35, 35, 35).asDiagonal();
+        // leg.kd_joint = Vec3<double>(2.0, 2.0, 2.0).asDiagonal();
+        // leg.kp_joint = Vec3<double>(34, 34, 34).asDiagonal();
+        // leg.kd_joint = Vec3<double>(2, 2, 2).asDiagonal();
         leg.q_des = Vec3<double>(rl_controller_->desired_positions[i*3], rl_controller_->desired_positions[i*3+1], rl_controller_->desired_positions[i*3+2]);
         leg.qd_des = Vec3<double>(0, 0, 0);
         leg.whl_kp_joint = 0;

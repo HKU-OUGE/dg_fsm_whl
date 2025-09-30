@@ -23,7 +23,8 @@ bool RLController::init() {
     }
     initialized_ = true;
     running_ = false;
-    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_height_6.onnx");
+    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_09300114.onnx");
+    // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_height_6.onnx");
     std::cout << "Policy Loaded" << std::endl;
 
     return true;
@@ -210,6 +211,9 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         Vec16<double> scaled_actions;
         for (int i = 0; i < 12; i++) {
             scaled_actions[i] = last_action[i] * s_act_joint_position; // Assuming action_scale is 0.5, adjust if needed
+            if (i == 0 || i == 3 || i == 6 || i == 9) {
+                scaled_actions[i] = last_action[i] * s_act_abad_joint_position; // Assuming action_scale is 0.5, adjust if needed
+            }
             scaled_actions[i] = std::clamp(scaled_actions[i], -15.0, 15.0);
         }
 

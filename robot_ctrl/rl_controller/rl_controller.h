@@ -56,6 +56,7 @@ private:
     double s_obs_joint_pos = 1.0;
     double s_obs_joint_vel = 0.05;
 
+    double s_act_abad_joint_position = 0.25;
     double s_act_joint_position = 0.25;
     double s_act_wheel_velocity=1.5;
 
@@ -65,30 +66,30 @@ private:
     bool running_ = false;
     Vec16<double> last_action=Vec16<double>::Zero(); // Stores the last action taken by the controller
     Vec16<double> default_dof_pos = (Vec16<double>() << 
-        0.0,  0.7, -1.6, 0.0,  // LF leg (hip, thigh, calf)
-        0.0,  -0.7, 1.6, 0.0,  // RF leg 
-        0.0,  0.7, -1.6, 0.0,  // LH leg
-        0.0,  -0.7, 1.6, 0.0   // RH leg
+        0.0,  0.95, -1.6, 0.0,  // LF leg (hip, thigh, calf)
+        0.0,  -0.95, 1.6, 0.0,  // RF leg
+        0.0,  0.95, -1.6, 0.0,  // LH leg
+        0.0,  -0.95, 1.6, 0.0   // RH leg
     ).finished();
     Vec12<double> default_dof_pos_obs = (Vec12<double>() << 
-        0.0,  0.7, -1.6, // LF leg (hip, thigh, calf)
-        0.0,  -0.7, 1.6, // RF leg 
-        0.0,  0.7, -1.6, // LH leg
-        0.0,  -0.7, 1.6 // RH leg
+        0.0,  0.95, -1.6, // LF leg (hip, thigh, calf)
+        0.0,  -0.95, 1.6, // RF leg
+        0.0,  0.95, -1.6, // LH leg
+        0.0,  -0.95, 1.6 // RH leg
     ).finished();
 
     Vec12<double> default_dof_pos_reorder_ = (Vec12<double>() << 
-    0.0,  0.7, -1.6,  // LF leg (hip, thigh, calf)
-    0.0,  -0.7, 1.6,  // LH leg
-    0.0,  0.7, -1.6,  // RF leg
-    0.0,  -0.7, 1.6   // RH leg
+    0.0,  0.95, -1.6,  // LF leg (hip, thigh, calf)
+    0.0,  -0.95, 1.6,  // LH leg
+    0.0,  0.95, -1.6,  // RF leg
+    0.0,  -0.95, 1.6   // RH leg
     ).finished();
 
     Vec12<double> default_dof_pos_obs_reorder_ = (Vec12<double>() << 
-    0.0,  0.7, -1.6,  // LF leg (hip, thigh, calf)
-    0.0,  -0.7, 1.6,  // LH leg
-    0.0,  0.7, -1.6,  // RF leg
-    0.0,  -0.7, 1.6   // RH leg
+    0.0,  0.95, -1.6,  // LF leg (hip, thigh, calf)
+    0.0,  -0.95, 1.6,  // LH leg
+    0.0,  0.95, -1.6,  // RF leg
+    0.0,  -0.95, 1.6   // RH leg
     ).finished();
 
     Vec4<double> leg_theta;
