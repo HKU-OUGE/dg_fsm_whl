@@ -42,7 +42,7 @@ void FSM_State_RL_Walk::run_state() {
     (void) this->fsm_data_->estimators_->get_result_quat();
     (void) this->fsm_data_->estimators_->get_reult_acc_w();
     (void) this->fsm_data_->leg_controller_->leg_data[0].q(0);
-    rl_controller_->terrain_height_ = fsm_data_->rc_->rc_control_.omega_des[2];
+    // rl_controller_->terrain_height_ = fsm_data_->rc_->rc_control_.omega_des[2];
     // std::cout<<"terrain_height_ = "<<rl_controller_->terrain_height_<<std::endl;
     // std::cout.flush();
     rl_controller_->step(&joint_q, &joint_qd, &accel, &desired_vel_xyw, &stand_flag);

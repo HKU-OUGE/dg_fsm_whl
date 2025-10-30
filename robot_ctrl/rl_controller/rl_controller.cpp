@@ -23,8 +23,15 @@ bool RLController::init() {
     }
     initialized_ = true;
     running_ = false;
-    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_09300114.onnx");
+    // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_09300233.onnx");
     // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_height_6.onnx");
+    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/rough_policy.onnx");
+    std::cout << "Policy Loaded" << std::endl;
+
+
+    gru_hidden_state_.resize(gru_num_layers_ * 1 * gru_hidden_size_, 0.0f); // batch_size=1
+
+    // ... 原有加载模型代码 ...
     std::cout << "Policy Loaded" << std::endl;
 
     return true;
@@ -117,7 +124,7 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs_reorder_) * s_obs_joint_pos;
         observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
         observation.segment<16>(25) = last_action;
-        observation(41) = terrain_height_;
+        // observation(41) = terrain_height_;
         // std::cout << "terrain_height: " <<terrain_height_<< std::endl;
         // std::cout.flush();
         // for(int i = 0; i < 4; i++) {
@@ -166,6 +173,9 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // Define input shapes
         std::vector<int64_t> obs_shape = {1, dof_obs_};
         // std::vector<int64_t> obs_history_shape = {1, 245};
+
+        // Define h_in shape
+        std::vector<int64_t> h_in_shape = {gru_num_layers_, 1, gru_hidden_size_}; // (layers, batch, hidden_size)
         
         Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         
@@ -174,14 +184,18 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         input_tensors.push_back(Ort::Value::CreateTensor<float>(
             memory_info, obs_tensor_values.data(), obs_tensor_values.size(), 
             obs_shape.data(), obs_shape.size()));
-            
+
+
+        input_tensors.push_back(Ort::Value::CreateTensor<float>(
+    memory_info, gru_hidden_state_.data(), gru_hidden_state_.size(),
+    h_in_shape.data(), h_in_shape.size()));
         // input_tensors.push_back(Ort::Value::CreateTensor<float>(
         //     memory_info, obs_history_tensor_values.data(), obs_history_tensor_values.size(),
         //     obs_history_shape.data(), obs_history_shape.size()));
 
         // Define input/output names
-        const char* input_names[] = {"obs", "obs_history"};
-        const char* output_names[] = {"actions"};
+        const char* input_names[] = {"obs", "h_in"};
+        const char* output_names[] = {"actions", "h_out"};
 
         // Run inference
         auto output_tensors = session_->Run(
@@ -205,7 +219,14 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         for (int i = 0; i < 16; i++) {
             last_action[i] = output_data[i];
         }
-        
+
+        // 更新隐藏状态（用于下一次推理）
+        if (output_tensors.size() > 1) {
+            float* new_hidden_state = output_tensors[1].GetTensorMutableData<float>();
+            std::memcpy(gru_hidden_state_.data(), new_hidden_state,
+                       gru_hidden_state_.size() * sizeof(float));
+        }
+
         //calculate the desire pos:
         // Scale actions and add default positions to get full joint commands
         Vec16<double> scaled_actions;
@@ -214,12 +235,12 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
             if (i == 0 || i == 3 || i == 6 || i == 9) {
                 scaled_actions[i] = last_action[i] * s_act_abad_joint_position; // Assuming action_scale is 0.5, adjust if needed
             }
-            scaled_actions[i] = std::clamp(scaled_actions[i], -15.0, 15.0);
+            scaled_actions[i] = std::clamp(scaled_actions[i], -100.0, 100.0);
         }
 
         for (int i = 12; i < 16; i++) {
             scaled_actions[i] = last_action[i] * s_act_wheel_velocity; // Assuming action_scale is 0.5, adjust if needed
-            scaled_actions[i] = std::clamp(scaled_actions[i], -15.0, 15.0);
+            scaled_actions[i] = std::clamp(scaled_actions[i], -100.0, 100.0);
         }
 
 

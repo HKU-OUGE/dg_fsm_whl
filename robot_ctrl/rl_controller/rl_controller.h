@@ -10,7 +10,7 @@ class RLController {
 public:
     RLController() = default;
     ~RLController() = default;
-    double terrain_height_ = 0.0;
+    // double terrain_height_ = 0.0;
 
     /**
      * Initialize the RL controller
@@ -54,13 +54,17 @@ private:
     double s_obs_projected_gravity = 1.0;
     double s_obs_velocity_commands = 1.0;
     double s_obs_joint_pos = 1.0;
-    double s_obs_joint_vel = 0.05;
+    double s_obs_joint_vel = 0.5;
 
     double s_act_abad_joint_position = 0.25;
     double s_act_joint_position = 0.25;
     double s_act_wheel_velocity=1.5;
 
-    int dof_obs_ = 42;
+    int dof_obs_ = 41;
+
+    std::vector<float> gru_hidden_state_;  // 添加的GRU隐藏状态
+    int gru_num_layers_ = 1;               // GRU层数（根据模型调整）
+    int gru_hidden_size_ = 256;            // GRU隐藏层大小（根据模型调整）
 
     bool initialized_ = false;
     bool running_ = false;
