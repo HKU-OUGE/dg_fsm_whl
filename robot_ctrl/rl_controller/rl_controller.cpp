@@ -61,32 +61,34 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         Vec4<double> reordered_vels;
         Vec16<double> reordered_full_vels;
         
-        // Front legs (indices 3-6 and 9-12 in original)
-        reordered_angles.segment<3>(0) = joint_q->segment<3>(11);   // LF leg 10
-        reordered_angles.segment<3>(3) = joint_q->segment<3>(19);   // LH leg
+        // --- 关节位置 (Positions) ---
+        // 1. LF (Left Front) -> Index 11
+        reordered_angles.segment<3>(0) = joint_q->segment<3>(11);
+        // 2. RF (Right Front) -> Index 7
+        reordered_angles.segment<3>(3) = joint_q->segment<3>(7);
+        // 3. LH (Left Hind)   -> Index 19
+        reordered_angles.segment<3>(6) = joint_q->segment<3>(19);
+        // 4. RH (Right Hind)  -> Index 15
+        reordered_angles.segment<3>(9) = joint_q->segment<3>(15);
+
+        // --- 关节速度 (Joint Velocities) ---
+        reordered_full_vels.segment<3>(0) = joint_qd->segment<3>(11); // LF
+        reordered_full_vels.segment<3>(3) = joint_qd->segment<3>(7);  // RF
+        reordered_full_vels.segment<3>(6) = joint_qd->segment<3>(19); // LH
+        reordered_full_vels.segment<3>(9) = joint_qd->segment<3>(15); // RH
+
+        // --- 轮子速度 (Wheel Velocities) ---
+        // 假设轮子索引: 13(LF), 9(RF), 21(LH), 17(RH)
+        reordered_vels[0] = (*joint_qd)[13]; // LF
+        reordered_vels[1] = (*joint_qd)[9];  // RF
+        reordered_vels[2] = (*joint_qd)[21]; // LH
+        reordered_vels[3] = (*joint_qd)[17]; // RH
         
-        // Rear legs (indices 0-3 and 6-9 in original) 
-        reordered_angles.segment<3>(6) = joint_q->segment<3>(7);   // RF leg
-        reordered_angles.segment<3>(9) = joint_q->segment<3>(15);   // RH leg
-
-        // Front legs (indices 3-6 and 9-12 in original)
-        reordered_full_vels.segment<3>(0) = joint_qd->segment<3>(11);   // LF leg 10
-        reordered_full_vels.segment<3>(3) = joint_qd->segment<3>(19);   // LH leg
-
-        // Rear legs (indices 0-3 and 6-9 in original)
-        reordered_full_vels.segment<3>(6) = joint_qd->segment<3>(7);   // RF leg
-        reordered_full_vels.segment<3>(9) = joint_qd->segment<3>(15);   // RH leg
-
-        // whl velocities
-        reordered_vels[0] = (*joint_qd)[13];  
-        reordered_vels[1] = (*joint_qd)[21];   
-        reordered_vels[2] = (*joint_qd)[9];
-        reordered_vels[3] = (*joint_qd)[17];
-
-        reordered_full_vels[12] = (*joint_qd)[13];
-        reordered_full_vels[13] = (*joint_qd)[21];
-        reordered_full_vels[14] = (*joint_qd)[9];
-        reordered_full_vels[15] = (*joint_qd)[17];
+        // 放入 full_vels 的对应位置
+        reordered_full_vels[12] = (*joint_qd)[13]; // LF
+        reordered_full_vels[13] = (*joint_qd)[9];  // RF
+        reordered_full_vels[14] = (*joint_qd)[21]; // LH
+        reordered_full_vels[15] = (*joint_qd)[17]; // RH
         
         // update commands, period and gait schedule:
         vel_commands = *desired_vel_xyw;
@@ -271,23 +273,30 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
 
 
 
-        // tweak order:
-        desired_positions.segment<3>(0) = final_actions.segment<3>(6);  // FR leg
-        desired_positions.segment<3>(3) = final_actions.segment<3>(0);  // FL leg
-        desired_positions.segment<3>(6) = final_actions.segment<3>(9);  // RR leg
-        desired_positions.segment<3>(9) = final_actions.segment<3>(3);  // RL leg
-        desired_positions[12] = final_actions[14];  // whl
-        desired_positions[13] = final_actions[12];
-        desired_positions[14] = final_actions[15];
-        desired_positions[15] = final_actions[13];
-        // desired_positions.segment<3>(0) = default_dof_pos.segment<3>(8);  // FR leg
-        // desired_positions.segment<3>(3) = default_dof_pos.segment<3>(0);  // FL leg
-        // desired_positions.segment<3>(6) = default_dof_pos.segment<3>(12);  // RR leg
-        // desired_positions.segment<3>(9) = default_dof_pos.segment<3>(4);  // RL leg
-        // desired_positions[12] = 0.0;  // whl
-        // desired_positions[13] = 0.0;
-        // desired_positions[14] = 0.0;
-        // desired_positions[15] = 0.0;
+        // ==================== 2. 修正动作映射 (Fix Action Mapping) ====================
+        // 模型输出 (final_actions) 顺序现在是: [LF, RF, LH, RH]
+        // 硬件期望 (desired_positions) 顺序通常是: [FR, FL, RR, RL] (0, 1, 2, 3)
+
+        // 1. 硬件 FR (0) <--- 模型 RF (Index 3-5)
+        desired_positions.segment<3>(0) = final_actions.segment<3>(3); 
+        
+        // 2. 硬件 FL (1) <--- 模型 LF (Index 0-2)
+        desired_positions.segment<3>(3) = final_actions.segment<3>(0);
+        
+        // 3. 硬件 RR (2) <--- 模型 RH (Index 9-11)
+        desired_positions.segment<3>(6) = final_actions.segment<3>(9);
+        
+        // 4. 硬件 RL (3) <--- 模型 LH (Index 6-8)
+        desired_positions.segment<3>(9) = final_actions.segment<3>(6);
+
+        // --- 轮子动作映射 ---
+        // final_actions[12-15] 顺序是 LF, RF, LH, RH
+        // 硬件顺序: FR(0), FL(1), RR(2), RL(3)
+        
+        desired_positions[12] = final_actions[13];  // HW FR wheel <- Model RF wheel
+        desired_positions[13] = final_actions[12];  // HW FL wheel <- Model LF wheel
+        desired_positions[14] = final_actions[15];  // HW RR wheel <- Model RH wheel
+        desired_positions[15] = final_actions[14];  // HW RL wheel <- Model LH wheel
     }
     step_counter++;
     return true;
