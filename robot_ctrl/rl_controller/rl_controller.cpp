@@ -13,7 +13,7 @@ bool RLController::init() {
     s_obs_projected_gravity = 1.0;
     s_obs_velocity_commands = 1.0;
     s_obs_joint_pos = 1.0;
-    s_obs_joint_vel = 0.05;
+    s_obs_joint_vel = 0.5;
 
     s_act_joint_position = 0.25;
     s_act_wheel_velocity=1.5;
@@ -23,10 +23,10 @@ bool RLController::init() {
     }
     initialized_ = true;
     running_ = false;
-    // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_09300233.onnx");
-    // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_height_6.onnx");
-    // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_1118.onnx");
-    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_11252018.onnx");
+    // loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_09300233.onnx");
+    // loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_height_6.onnx");
+    // loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_leg_exp_1118.onnx");
+    loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_leg_exp_11252018.onnx");
     std::cout << "Policy Loaded" << std::endl;
 
 

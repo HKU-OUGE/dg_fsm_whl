@@ -71,7 +71,7 @@ void FSM_State_SitDown::run_state() {
     }
     for (int leg = 0; leg < 4; leg++) {
         this->fsm_data_->leg_controller_->leg_command[leg].whl_kp_joint = 0.0;
-        this->fsm_data_->leg_controller_->leg_command[leg].whl_kd_joint = 1.0;
+        this->fsm_data_->leg_controller_->leg_command[leg].whl_kd_joint = 3.0;
         this->fsm_data_->leg_controller_->leg_command[leg].whl_qd_des = 0.0;
         this->fsm_data_->leg_controller_->leg_command[leg].whl_tau_ff = 0.0;
       }
