@@ -31,7 +31,7 @@ bool RLController::init() {
 
 bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<double>* accel, Vec3<double>* desired_vel_xyw, int* stand_flag) {
     
-    if (step_counter % 10 == 0) {
+    if (step_counter % 20 == 0) {
         // Extract quaternion from joint_q (indices 3-6 contain q_w, q_x, q_y, q_z)
         Vec4<double> quat;
         quat[0] = (*joint_q)[3]; // w
