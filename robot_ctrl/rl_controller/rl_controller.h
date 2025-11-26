@@ -48,17 +48,17 @@ private:
     //     "actions_leg_position": 0.25,
     //     "actions_wheel_velocity": 1.5
     // };
-
+    
     double s_obs_base_lin_vel = 2.0;
     double s_obs_base_ang_vel = 0.25;
     double s_obs_projected_gravity = 1.0;
     double s_obs_velocity_commands = 1.0;
     double s_obs_joint_pos = 1.0;
     double s_obs_joint_vel = 0.5;
-
-    double s_act_abad_joint_position = 0.25;
-    double s_act_joint_position = 0.25;
-    double s_act_wheel_velocity=1.5;
+    
+    double s_act_joint_position = 0.25; // Action Scale (Pos)
+    double s_act_wheel_velocity = 1.5;  // Action Scale (Vel)
+    double s_act_abad_joint_position = 0.25; // 如果 abad scale 不同，请确认
 
     int dof_obs_ = 53;
 
@@ -76,17 +76,17 @@ private:
         0.0,  -0.95, 1.6, 0.0   // RH leg
     ).finished();
     Vec12<double> default_dof_pos_obs = (Vec12<double>() << 
-        0.0,  0.95, -1.6, // LF leg (hip, thigh, calf)
-        0.0,  -0.95, 1.6, // RF leg
-        0.0,  0.95, -1.6, // LH leg
-        0.0,  -0.95, 1.6 // RH leg
+        0.0,  0.95, -1.6,  // LF (Left Front)
+        0.0, -0.95,  1.6,  // LH (Left Hind)
+        0.0,  0.95, -1.6,  // RF (Right Front)
+        0.0, -0.95,  1.6   // RH (Right Hind)
     ).finished();
 
     Vec12<double> default_dof_pos_reorder_ = (Vec12<double>() << 
-    0.0,  0.95, -1.6,  // LF leg (hip, thigh, calf)
-    0.0,  -0.95, 1.6,  // LH leg
-    0.0,  0.95, -1.6,  // RF leg
-    0.0,  -0.95, 1.6   // RH leg
+        0.0,  0.95, -1.6,  // LF (Left Front)
+        0.0, -0.95,  1.6,  // LH (Left Hind)
+        0.0,  0.95, -1.6,  // RF (Right Front)
+        0.0, -0.95,  1.6   // RH (Right Hind)
     ).finished();
 
     Vec12<double> default_dof_pos_obs_reorder_ = (Vec12<double>() << 
