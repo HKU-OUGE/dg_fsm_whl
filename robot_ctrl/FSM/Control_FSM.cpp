@@ -144,7 +144,7 @@ void ControlFSM::ControlFSM_run() {
 
 void ControlFSM::Get_Settings() {
     const std::string setting_name = "State_Parameters";
-    const std::string file_name = "/home/ray/software/repositories/dg_fsm_whl/config/Control_Parameters.info";
+    const std::string file_name = "/home/ouge/Software/dg_fsm_whl/config/Control_Parameters.info";
     boost::property_tree::ptree pt;
     boost::property_tree::read_info(file_name, pt);
     loadData::loadEigenMatrix(file_name, "kp_stand_vec", control_para_.kp_stand_);

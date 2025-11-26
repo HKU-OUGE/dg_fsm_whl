@@ -13,7 +13,7 @@ bool RLController::init() {
     s_obs_projected_gravity = 1.0;
     s_obs_velocity_commands = 1.0;
     s_obs_joint_pos = 1.0;
-    s_obs_joint_vel = 0.05;
+    s_obs_joint_vel = 0.5;
 
     s_act_joint_position = 0.25;
     s_act_wheel_velocity=1.5;
@@ -23,7 +23,16 @@ bool RLController::init() {
     }
     initialized_ = true;
     running_ = false;
-    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_tty_box_0830_1308.onnx");
+    // loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_09300233.onnx");
+    // loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_height_6.onnx");
+    // loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_leg_exp_1118.onnx");
+    loadPolicy("/home/ouge/Software/dg_fsm_whl/models/policy_leg_exp_11252018.onnx");
+    std::cout << "Policy Loaded" << std::endl;
+
+
+    gru_hidden_state_.resize(gru_num_layers_ * 1 * gru_hidden_size_, 0.0f); // batch_size=1
+
+    // ... 原有加载模型代码 ...
     std::cout << "Policy Loaded" << std::endl;
 
     return true;
@@ -50,6 +59,7 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // Reorder joint angles and velocities to match expected format
         Vec12<double> reordered_angles;
         Vec4<double> reordered_vels;
+        Vec16<double> reordered_full_vels;
         
         // Front legs (indices 3-6 and 9-12 in original)
         reordered_angles.segment<3>(0) = joint_q->segment<3>(11);   // LF leg 10
@@ -59,11 +69,24 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         reordered_angles.segment<3>(6) = joint_q->segment<3>(7);   // RF leg
         reordered_angles.segment<3>(9) = joint_q->segment<3>(15);   // RH leg
 
+        // Front legs (indices 3-6 and 9-12 in original)
+        reordered_full_vels.segment<3>(0) = joint_qd->segment<3>(11);   // LF leg 10
+        reordered_full_vels.segment<3>(3) = joint_qd->segment<3>(19);   // LH leg
+
+        // Rear legs (indices 0-3 and 6-9 in original)
+        reordered_full_vels.segment<3>(6) = joint_qd->segment<3>(7);   // RF leg
+        reordered_full_vels.segment<3>(9) = joint_qd->segment<3>(15);   // RH leg
+
         // whl velocities
         reordered_vels[0] = (*joint_qd)[13];  
         reordered_vels[1] = (*joint_qd)[21];   
         reordered_vels[2] = (*joint_qd)[9];
         reordered_vels[3] = (*joint_qd)[17];
+
+        reordered_full_vels[12] = (*joint_qd)[13];
+        reordered_full_vels[13] = (*joint_qd)[21];
+        reordered_full_vels[14] = (*joint_qd)[9];
+        reordered_full_vels[15] = (*joint_qd)[17];
         
         // update commands, period and gait schedule:
         vel_commands = *desired_vel_xyw;
@@ -114,9 +137,12 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         observation.segment<3>(6) = vel_commands * s_obs_velocity_commands;
         // observation[9] = *stand_flag;
         observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs_reorder_) * s_obs_joint_pos;
-        observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
-        observation.segment<16>(25) = last_action;
-
+        // observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
+        observation.segment<16>(21) = reordered_full_vels * s_obs_joint_vel;
+        observation.segment<16>(37) = last_action;
+        // observation(41) = terrain_height_;
+        // std::cout << "terrain_height: " <<terrain_height_<< std::endl;
+        // std::cout.flush();
         // for(int i = 0; i < 4; i++) {
         // observation[41 + i*2] = leg_xy[2*i]*0.1; // x coordinate
         // observation[42 + i*2] = leg_xy[2*i+1]*0.1; // y coordinate
@@ -163,6 +189,9 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // Define input shapes
         std::vector<int64_t> obs_shape = {1, dof_obs_};
         // std::vector<int64_t> obs_history_shape = {1, 245};
+
+        // Define h_in shape
+        std::vector<int64_t> h_in_shape = {gru_num_layers_, 1, gru_hidden_size_}; // (layers, batch, hidden_size)
         
         Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         
@@ -171,14 +200,18 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         input_tensors.push_back(Ort::Value::CreateTensor<float>(
             memory_info, obs_tensor_values.data(), obs_tensor_values.size(), 
             obs_shape.data(), obs_shape.size()));
-            
+
+
+        input_tensors.push_back(Ort::Value::CreateTensor<float>(
+    memory_info, gru_hidden_state_.data(), gru_hidden_state_.size(),
+    h_in_shape.data(), h_in_shape.size()));
         // input_tensors.push_back(Ort::Value::CreateTensor<float>(
         //     memory_info, obs_history_tensor_values.data(), obs_history_tensor_values.size(),
         //     obs_history_shape.data(), obs_history_shape.size()));
 
         // Define input/output names
-        const char* input_names[] = {"obs", "obs_history"};
-        const char* output_names[] = {"actions"};
+        const char* input_names[] = {"obs", "h_in"};
+        const char* output_names[] = {"actions", "h_out"};
 
         // Run inference
         auto output_tensors = session_->Run(
@@ -202,27 +235,51 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         for (int i = 0; i < 16; i++) {
             last_action[i] = output_data[i];
         }
-        
+
+        // 更新隐藏状态（用于下一次推理）
+        if (output_tensors.size() > 1) {
+            float* new_hidden_state = output_tensors[1].GetTensorMutableData<float>();
+            std::memcpy(gru_hidden_state_.data(), new_hidden_state,
+                       gru_hidden_state_.size() * sizeof(float));
+        }
+
         //calculate the desire pos:
         // Scale actions and add default positions to get full joint commands
         Vec16<double> scaled_actions;
         for (int i = 0; i < 12; i++) {
-            scaled_actions[i] = last_action[i] * s_act_joint_position + default_dof_pos_reorder_[i]; // Assuming action_scale is 0.5, adjust if needed
+            scaled_actions[i] = last_action[i] * s_act_joint_position; // Assuming action_scale is 0.5, adjust if needed
+            if (i == 0 || i == 3 || i == 6 || i == 9) {
+                scaled_actions[i] = last_action[i] * s_act_abad_joint_position; // Assuming action_scale is 0.5, adjust if needed
+            }
+            scaled_actions[i] = std::clamp(scaled_actions[i], -500.0, 500.0);
         }
 
         for (int i = 12; i < 16; i++) {
             scaled_actions[i] = last_action[i] * s_act_wheel_velocity; // Assuming action_scale is 0.5, adjust if needed
+            scaled_actions[i] = std::clamp(scaled_actions[i], -500.0, 500.0);
         }
 
+
+        Vec16<double> final_actions;
+        for (int i = 0; i < 12; i++) {
+            final_actions[i] = scaled_actions[i] + default_dof_pos_reorder_[i]; // Assuming action_scale is 0.5, adjust if needed
+        }
+
+        for (int i = 12; i < 16; i++) {
+            final_actions[i] = scaled_actions[i]; // Assuming action_scale is 0.5, adjust if needed
+        }
+
+
+
         // tweak order:
-        desired_positions.segment<3>(0) = scaled_actions.segment<3>(6);  // FR leg
-        desired_positions.segment<3>(3) = scaled_actions.segment<3>(0);  // FL leg
-        desired_positions.segment<3>(6) = scaled_actions.segment<3>(9);  // RR leg
-        desired_positions.segment<3>(9) = scaled_actions.segment<3>(3);  // RL leg
-        desired_positions[12] = scaled_actions[14];  // whl
-        desired_positions[13] = scaled_actions[12];
-        desired_positions[14] = scaled_actions[15];
-        desired_positions[15] = scaled_actions[13];
+        desired_positions.segment<3>(0) = final_actions.segment<3>(6);  // FR leg
+        desired_positions.segment<3>(3) = final_actions.segment<3>(0);  // FL leg
+        desired_positions.segment<3>(6) = final_actions.segment<3>(9);  // RR leg
+        desired_positions.segment<3>(9) = final_actions.segment<3>(3);  // RL leg
+        desired_positions[12] = final_actions[14];  // whl
+        desired_positions[13] = final_actions[12];
+        desired_positions[14] = final_actions[15];
+        desired_positions[15] = final_actions[13];
         // desired_positions.segment<3>(0) = default_dof_pos.segment<3>(8);  // FR leg
         // desired_positions.segment<3>(3) = default_dof_pos.segment<3>(0);  // FL leg
         // desired_positions.segment<3>(6) = default_dof_pos.segment<3>(12);  // RR leg

@@ -85,6 +85,14 @@ Send bin to the slave
 bash ./scripts/send_to_slave.sh #TODO: test this script
 ```
 
+### Executing Car Jump Task
+
+robot/hardwares/src/rt_remote_controller.cpp 183-207 行被修改以用遥控器模拟策略的地形相关参数输入，rc_control_omega_des[2]的值被传入rl控制器的observation中以控制机器狗。
+
+具体操作如下：
+正常切换到rl控制模式，使用手柄的左右摇杆以控制机器狗正对要上去的平台，让机器狗在在距离平台10cm左右先停住，准备上平台，随后进行上车操作。
+
+上车操作为：推动手柄左侧摇杆给机器人一个x方向前进的速度（启动时候可以推到底给它最大速度0.6m/s），同时右手一直按着Y键以给机器人一个模拟的前方平台高度模拟值，鼓励机器狗抬腿，在上车过程中左侧摇杆根据实际情况可适当减少速度，右侧按键则在机器狗两条前腿上去平台后换为长按B键（上车过程中地形观测值的变化）。正常情况下机器狗能上去平台，上去后手柄不操作，则机器狗保持站立姿势。
 
 
 
