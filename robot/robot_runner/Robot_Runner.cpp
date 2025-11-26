@@ -9,7 +9,7 @@
 
 RobotRunner::RobotRunner(std::string &model_name, Robot_Controller_Base *control_base, Config::run_type sim)
     : robot_ctrl_(control_base), sim_(sim), lcm_leg_cmd_(getLcmUrl(255)), lcm_leg_data_(getLcmUrl(255)),
-      lcm_leg_esti_(getLcmUrl(255)), runner_timer_(0, 2000), lcm_cmd_receive_(getLcmUrl(255)),
+      lcm_leg_esti_(getLcmUrl(255)), runner_timer_(0, 1000), lcm_cmd_receive_(getLcmUrl(255)),
       lcm_data_publish_(getLcmUrl(255))
 #if defined(SIMULATOR)
       , sim_state_subscriber({"Robot", "SIM", "State"}),
