@@ -25,7 +25,8 @@ bool RLController::init() {
     running_ = false;
     // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_09300233.onnx");
     // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_height_6.onnx");
-    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/rough_policy.onnx");
+    // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_1118.onnx");
+    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_11252018.onnx");
     std::cout << "Policy Loaded" << std::endl;
 
 
@@ -58,6 +59,7 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // Reorder joint angles and velocities to match expected format
         Vec12<double> reordered_angles;
         Vec4<double> reordered_vels;
+        Vec16<double> reordered_full_vels;
         
         // Front legs (indices 3-6 and 9-12 in original)
         reordered_angles.segment<3>(0) = joint_q->segment<3>(11);   // LF leg 10
@@ -67,11 +69,24 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         reordered_angles.segment<3>(6) = joint_q->segment<3>(7);   // RF leg
         reordered_angles.segment<3>(9) = joint_q->segment<3>(15);   // RH leg
 
+        // Front legs (indices 3-6 and 9-12 in original)
+        reordered_full_vels.segment<3>(0) = joint_qd->segment<3>(11);   // LF leg 10
+        reordered_full_vels.segment<3>(3) = joint_qd->segment<3>(19);   // LH leg
+
+        // Rear legs (indices 0-3 and 6-9 in original)
+        reordered_full_vels.segment<3>(6) = joint_qd->segment<3>(7);   // RF leg
+        reordered_full_vels.segment<3>(9) = joint_qd->segment<3>(15);   // RH leg
+
         // whl velocities
         reordered_vels[0] = (*joint_qd)[13];  
         reordered_vels[1] = (*joint_qd)[21];   
         reordered_vels[2] = (*joint_qd)[9];
         reordered_vels[3] = (*joint_qd)[17];
+
+        reordered_full_vels[12] = (*joint_qd)[13];
+        reordered_full_vels[13] = (*joint_qd)[21];
+        reordered_full_vels[14] = (*joint_qd)[9];
+        reordered_full_vels[15] = (*joint_qd)[17];
         
         // update commands, period and gait schedule:
         vel_commands = *desired_vel_xyw;
@@ -122,8 +137,9 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         observation.segment<3>(6) = vel_commands * s_obs_velocity_commands;
         // observation[9] = *stand_flag;
         observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs_reorder_) * s_obs_joint_pos;
-        observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
-        observation.segment<16>(25) = last_action;
+        // observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
+        observation.segment<16>(21) = reordered_full_vels * s_obs_joint_vel;
+        observation.segment<16>(37) = last_action;
         // observation(41) = terrain_height_;
         // std::cout << "terrain_height: " <<terrain_height_<< std::endl;
         // std::cout.flush();
@@ -235,12 +251,12 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
             if (i == 0 || i == 3 || i == 6 || i == 9) {
                 scaled_actions[i] = last_action[i] * s_act_abad_joint_position; // Assuming action_scale is 0.5, adjust if needed
             }
-            scaled_actions[i] = std::clamp(scaled_actions[i], -100.0, 100.0);
+            scaled_actions[i] = std::clamp(scaled_actions[i], -500.0, 500.0);
         }
 
         for (int i = 12; i < 16; i++) {
             scaled_actions[i] = last_action[i] * s_act_wheel_velocity; // Assuming action_scale is 0.5, adjust if needed
-            scaled_actions[i] = std::clamp(scaled_actions[i], -100.0, 100.0);
+            scaled_actions[i] = std::clamp(scaled_actions[i], -500.0, 500.0);
         }
 
 
