@@ -6,6 +6,9 @@
 #include <eigen3/Eigen/Dense>
 #include <iostream>
 #include "onnxruntime_cxx_api.h"
+
+#include <torch/script.h>
+
 class RLController {
 public:
     RLController() = default;
@@ -108,7 +111,6 @@ private:
     std::unique_ptr<Ort::Env> env_;
     std::unique_ptr<Ort::SessionOptions> session_options_;
     std::unique_ptr<Ort::Session> session_;
-
-
+    torch::jit::script::Module model_;
     uint64_t step_counter = 0;
 };

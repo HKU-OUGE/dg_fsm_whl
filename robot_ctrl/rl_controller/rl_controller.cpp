@@ -16,9 +16,9 @@ bool RLController::init() {
     s_obs_joint_vel = 0.05;
 
     s_act_joint_position = 0.25;
-    s_act_wheel_velocity=1.5;
+    s_act_wheel_velocity = 1.5;
 
-    for(int i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         leg_theta[i] = gait_schedule[i];
     }
     initialized_ = true;
@@ -26,7 +26,8 @@ bool RLController::init() {
     // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_09300233.onnx");
     // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_height_6.onnx");
     // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_1118.onnx");
-    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_11252018.onnx");
+    // loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_nolegvel_11271952.onnx");
+    loadPolicy("/home/ray/software/repositories/dg_fsm_whl/models/policy_leg_exp_11252018.pt");
     std::cout << "Policy Loaded" << std::endl;
 
 
@@ -38,19 +39,19 @@ bool RLController::init() {
     return true;
 }
 
-bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<double>* accel, Vec3<double>* desired_vel_xyw, int* stand_flag) {
-    
+bool RLController::step(Vec23<double> *joint_q, Vec22<double> *joint_qd, Vec3<double> *accel,
+                        Vec3<double> *desired_vel_xyw, int *stand_flag) {
     if (step_counter % 10 == 0) {
         // Extract quaternion from joint_q (indices 3-6 contain q_w, q_x, q_y, q_z)
         Vec4<double> quat;
         quat[0] = (*joint_q)[3]; // w
-        quat[1] = (*joint_q)[4]; // x  
+        quat[1] = (*joint_q)[4]; // x
         quat[2] = (*joint_q)[5]; // y
         quat[3] = (*joint_q)[6]; // z
         // Extract body angular velocity from joint_qd (first 3 elements)
         Vec3<double> body_ang_vel;
         body_ang_vel[0] = (*joint_qd)[3];
-        body_ang_vel[1] = (*joint_qd)[4]; 
+        body_ang_vel[1] = (*joint_qd)[4];
         body_ang_vel[2] = (*joint_qd)[5];
 
         Vec3<double> gravity_vector(0, 0, -9.81);
@@ -60,26 +61,26 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         Vec12<double> reordered_angles;
         Vec4<double> reordered_vels;
         Vec16<double> reordered_full_vels;
-        
-        // Front legs (indices 3-6 and 9-12 in original)
-        reordered_angles.segment<3>(0) = joint_q->segment<3>(11);   // LF leg 10
-        reordered_angles.segment<3>(3) = joint_q->segment<3>(19);   // LH leg
-        
-        // Rear legs (indices 0-3 and 6-9 in original) 
-        reordered_angles.segment<3>(6) = joint_q->segment<3>(7);   // RF leg
-        reordered_angles.segment<3>(9) = joint_q->segment<3>(15);   // RH leg
 
         // Front legs (indices 3-6 and 9-12 in original)
-        reordered_full_vels.segment<3>(0) = joint_qd->segment<3>(11);   // LF leg 10
-        reordered_full_vels.segment<3>(3) = joint_qd->segment<3>(19);   // LH leg
+        reordered_angles.segment<3>(0) = joint_q->segment<3>(11); // LF leg 10
+        reordered_angles.segment<3>(3) = joint_q->segment<3>(19); // LH leg
 
         // Rear legs (indices 0-3 and 6-9 in original)
-        reordered_full_vels.segment<3>(6) = joint_qd->segment<3>(7);   // RF leg
-        reordered_full_vels.segment<3>(9) = joint_qd->segment<3>(15);   // RH leg
+        reordered_angles.segment<3>(6) = joint_q->segment<3>(7); // RF leg
+        reordered_angles.segment<3>(9) = joint_q->segment<3>(15); // RH leg
+
+        // Front legs (indices 3-6 and 9-12 in original)
+        reordered_full_vels.segment<3>(0) = joint_qd->segment<3>(11); // LF leg 10
+        reordered_full_vels.segment<3>(3) = joint_qd->segment<3>(19); // LH leg
+
+        // Rear legs (indices 0-3 and 6-9 in original)
+        reordered_full_vels.segment<3>(6) = joint_qd->segment<3>(7); // RF leg
+        reordered_full_vels.segment<3>(9) = joint_qd->segment<3>(15); // RH leg
 
         // whl velocities
-        reordered_vels[0] = (*joint_qd)[13];  
-        reordered_vels[1] = (*joint_qd)[21];   
+        reordered_vels[0] = (*joint_qd)[13];
+        reordered_vels[1] = (*joint_qd)[21];
         reordered_vels[2] = (*joint_qd)[9];
         reordered_vels[3] = (*joint_qd)[17];
 
@@ -87,39 +88,39 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         reordered_full_vels[13] = (*joint_qd)[21];
         reordered_full_vels[14] = (*joint_qd)[9];
         reordered_full_vels[15] = (*joint_qd)[17];
-        
+
         // update commands, period and gait schedule:
         vel_commands = *desired_vel_xyw;
         period = 0.8;
-        gait_schedule = Vec4<double>(0,M_PI,M_PI,0);
+        gait_schedule = Vec4<double>(0,M_PI,M_PI, 0);
 
-            // Update leg phase angles
-            double time_step = 0.02;
-            double delta_theta = time_step/period * 2*M_PI;
-            // time += time_step;
-            // std::cout << "time: " << time << std::endl;
-            // Update phase for each leg
-            for(int i = 0; i < 4; i++) {
-                leg_theta[i] += delta_theta;
+        // Update leg phase angles
+        double time_step = 0.02;
+        double delta_theta = time_step / period * 2 * M_PI;
+        // time += time_step;
+        // std::cout << "time: " << time << std::endl;
+        // Update phase for each leg
+        for (int i = 0; i < 4; i++) {
+            leg_theta[i] += delta_theta;
             // Convert polar to cartesian coordinates
-            leg_xy[2*i] = cos(leg_theta[i]);
-            leg_xy[2*i+1] = sin(leg_theta[i]);
+            leg_xy[2 * i] = cos(leg_theta[i]);
+            leg_xy[2 * i + 1] = sin(leg_theta[i]);
             // Update phase angle based on cartesian coordinates
-                leg_theta[i] = atan2(leg_xy[2*i+1], leg_xy[2*i]);
-            }
-            // if ((abs(vel_commands[1]) < 0.05) & (abs(vel_commands[2]) < 0.05)) {
-            //     for(int i = 0; i < 8; i++) {
-            //         leg_xy[i] = 0.0;
-            // }
-            // }
+            leg_theta[i] = atan2(leg_xy[2 * i + 1], leg_xy[2 * i]);
+        }
+        // if ((abs(vel_commands[1]) < 0.05) & (abs(vel_commands[2]) < 0.05)) {
+        //     for(int i = 0; i < 8; i++) {
+        //         leg_xy[i] = 0.0;
+        // }
+        // }
         // calculate current observation by concatenating:
         // 1. Base angular velocity (3)
-        // 2. Projected gravity vector (3) 
+        // 2. Projected gravity vector (3)
         // 3. Velocity commands (3)
         // 4. Joint angle difference from default pose (12)
         // 5. Last actions taken (12)
         // 6. Leg phase angles in x-y coordinates (8)
-        
+
 
         // observation.segment<3>(0) = body_ang_vel*0.25;
         // observation.segment<3>(3) = projected_gravity;
@@ -134,12 +135,16 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // observation.segment<3>(0) = body_lin_vel * POLICY_OBS_SCALES ["base_lin_vel"];
         observation.segment<3>(0) = body_ang_vel * s_obs_base_ang_vel;
         observation.segment<3>(3) = projected_gravity * s_obs_projected_gravity;
+        std::cout<<"vel_command:"<<vel_commands<<std::endl;
         observation.segment<3>(6) = vel_commands * s_obs_velocity_commands;
         // observation[9] = *stand_flag;
         observation.segment<12>(9) = (reordered_angles - default_dof_pos_obs_reorder_) * s_obs_joint_pos;
         // observation.segment<4>(21) = reordered_vels * s_obs_joint_vel;
+        // observation.segment<16>(25) = last_action;
         observation.segment<16>(21) = reordered_full_vels * s_obs_joint_vel;
         observation.segment<16>(37) = last_action;
+        torch::Tensor input_obs = torch::from_blob(observation.data(), {1, 53}, torch::kFloat64);
+        input_obs = input_obs.to(torch::kFloat);
         // observation(41) = terrain_height_;
         // std::cout << "terrain_height: " <<terrain_height_<< std::endl;
         // std::cout.flush();
@@ -147,7 +152,7 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // observation[41 + i*2] = leg_xy[2*i]*0.1; // x coordinate
         // observation[42 + i*2] = leg_xy[2*i+1]*0.1; // y coordinate
         // }
-    
+
 
         // Store current observation in history buffer
         // Shift old observations left and add new observation at end
@@ -173,75 +178,104 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         // }
 
         // Prepare input tensors for ONNX model
-        std::vector<float> obs_tensor_values(dof_obs_);
-        // std::vector<float> obs_history_tensor_values(245);
-        
-        // Current observation (49 values)
-        for (int i = 0; i < dof_obs_; i++) {
-            obs_tensor_values[i] = static_cast<float>(observation[i]);
+        bool use_onnx = false;
+        if (!use_onnx) {
+            std::vector<torch::jit::IValue> inputs;
+            inputs.push_back(input_obs);
+
+            // 3. 执行推理
+            // 模型内部会自动读取并更新 self.hidden_state
+            auto output_ivalue = model_.forward(inputs);
+
+            // 4. 获取输出
+            // [修正] 输出不再是 Tuple，而是直接的 Action Tensor
+            torch::Tensor actions;
+            if (output_ivalue.isTensor()) {
+                actions = output_ivalue.toTensor();
+                actions = actions.to(torch::kCPU).to(torch::kFloat).contiguous();
+                std::vector<float> result_vec(
+                    actions.data_ptr<float>(),
+                    actions.data_ptr<float>() + actions.numel()
+                );
+                for (int i = 0; i < 16; i++) {
+                    last_action[i] = result_vec[i];
+                }
+            } else {
+                // 防御性编程：以防万一未来导出的模型结构变了
+                std::cerr << "[Error] Unexpected model output type. Expected Tensor." << std::endl;
+            }
+        } else {
+            std::vector<float> obs_tensor_values(dof_obs_);
+            // std::vector<float> obs_history_tensor_values(245);
+
+            // Current observation (49 values)
+            for (int i = 0; i < dof_obs_; i++) {
+                obs_tensor_values[i] = static_cast<float>(observation[i]);
+            }
+
+            // Observation history (245 values)
+            // for (int i = 0; i < 245; i++) {
+            //     obs_history_tensor_values[i] = static_cast<float>(observation_history[i]);
+            // }
+
+            // Define input shapes
+            std::vector<int64_t> obs_shape = {1, dof_obs_};
+            // std::vector<int64_t> obs_history_shape = {1, 245};
+
+            // Define h_in shape
+            std::vector<int64_t> h_in_shape = {gru_num_layers_, 1, gru_hidden_size_}; // (layers, batch, hidden_size)
+
+            Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+            // Create input tensors
+            std::vector<Ort::Value> input_tensors;
+            input_tensors.push_back(Ort::Value::CreateTensor<float>(
+                memory_info, obs_tensor_values.data(), obs_tensor_values.size(),
+                obs_shape.data(), obs_shape.size()));
+
+
+            input_tensors.push_back(Ort::Value::CreateTensor<float>(
+                memory_info, gru_hidden_state_.data(), gru_hidden_state_.size(),
+                h_in_shape.data(), h_in_shape.size()));
+            // input_tensors.push_back(Ort::Value::CreateTensor<float>(
+            //     memory_info, obs_history_tensor_values.data(), obs_history_tensor_values.size(),
+            //     obs_history_shape.data(), obs_history_shape.size()));
+
+            // Define input/output names
+            const char *input_names[] = {"obs", "h_in"};
+            const char *output_names[] = {"actions", "h_out"};
+
+            // Run inference
+            auto output_tensors = session_->Run(
+                Ort::RunOptions{nullptr},
+                input_names,
+                input_tensors.data(),
+                input_tensors.size(),
+                output_names,
+                1);
+            // Print the input tensors
+            // std::cout << "===== Input Tensors =====" << std::endl;
+            // std::cout << "obs tensor (shape: [1,42]):" << std::endl;
+            // for (size_t i = 0; i < obs_tensor_values.size(); i++) {
+            //     std::cout << obs_tensor_values[i] << " ";
+            //     if ((i+1) % 6 == 0) std::cout << std::endl;  // Print 6 values per line
+            // }
+            // Get output data
+            float *output_data = output_tensors[0].GetTensorMutableData<float>();
+
+            // Update last_action with policy output
+            for (int i = 0; i < 16; i++) {
+                last_action[i] = output_data[i];
+            }
+
+            // 更新隐藏状态（用于下一次推理）
+            if (output_tensors.size() > 1) {
+                float *new_hidden_state = output_tensors[1].GetTensorMutableData<float>();
+                std::memcpy(gru_hidden_state_.data(), new_hidden_state,
+                            gru_hidden_state_.size() * sizeof(float));
+            }
         }
-        
-        // Observation history (245 values)
-        // for (int i = 0; i < 245; i++) {
-        //     obs_history_tensor_values[i] = static_cast<float>(observation_history[i]);
-        // }
-        
-        // Define input shapes
-        std::vector<int64_t> obs_shape = {1, dof_obs_};
-        // std::vector<int64_t> obs_history_shape = {1, 245};
 
-        // Define h_in shape
-        std::vector<int64_t> h_in_shape = {gru_num_layers_, 1, gru_hidden_size_}; // (layers, batch, hidden_size)
-        
-        Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-        
-        // Create input tensors
-        std::vector<Ort::Value> input_tensors;
-        input_tensors.push_back(Ort::Value::CreateTensor<float>(
-            memory_info, obs_tensor_values.data(), obs_tensor_values.size(), 
-            obs_shape.data(), obs_shape.size()));
-
-
-        input_tensors.push_back(Ort::Value::CreateTensor<float>(
-    memory_info, gru_hidden_state_.data(), gru_hidden_state_.size(),
-    h_in_shape.data(), h_in_shape.size()));
-        // input_tensors.push_back(Ort::Value::CreateTensor<float>(
-        //     memory_info, obs_history_tensor_values.data(), obs_history_tensor_values.size(),
-        //     obs_history_shape.data(), obs_history_shape.size()));
-
-        // Define input/output names
-        const char* input_names[] = {"obs", "h_in"};
-        const char* output_names[] = {"actions", "h_out"};
-
-        // Run inference
-        auto output_tensors = session_->Run(
-            Ort::RunOptions{nullptr}, 
-            input_names, 
-            input_tensors.data(), 
-            input_tensors.size(), 
-            output_names, 
-            1);
-        // Print the input tensors
-        // std::cout << "===== Input Tensors =====" << std::endl;
-        // std::cout << "obs tensor (shape: [1,42]):" << std::endl;
-        // for (size_t i = 0; i < obs_tensor_values.size(); i++) {
-        //     std::cout << obs_tensor_values[i] << " ";
-        //     if ((i+1) % 6 == 0) std::cout << std::endl;  // Print 6 values per line
-        // }
-        // Get output data
-        float* output_data = output_tensors[0].GetTensorMutableData<float>();
-        
-        // Update last_action with policy output
-        for (int i = 0; i < 16; i++) {
-            last_action[i] = output_data[i];
-        }
-
-        // 更新隐藏状态（用于下一次推理）
-        if (output_tensors.size() > 1) {
-            float* new_hidden_state = output_tensors[1].GetTensorMutableData<float>();
-            std::memcpy(gru_hidden_state_.data(), new_hidden_state,
-                       gru_hidden_state_.size() * sizeof(float));
-        }
 
         //calculate the desire pos:
         // Scale actions and add default positions to get full joint commands
@@ -249,7 +283,8 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         for (int i = 0; i < 12; i++) {
             scaled_actions[i] = last_action[i] * s_act_joint_position; // Assuming action_scale is 0.5, adjust if needed
             if (i == 0 || i == 3 || i == 6 || i == 9) {
-                scaled_actions[i] = last_action[i] * s_act_abad_joint_position; // Assuming action_scale is 0.5, adjust if needed
+                scaled_actions[i] = last_action[i] * s_act_abad_joint_position;
+                // Assuming action_scale is 0.5, adjust if needed
             }
             scaled_actions[i] = std::clamp(scaled_actions[i], -500.0, 500.0);
         }
@@ -262,7 +297,8 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
 
         Vec16<double> final_actions;
         for (int i = 0; i < 12; i++) {
-            final_actions[i] = scaled_actions[i] + default_dof_pos_reorder_[i]; // Assuming action_scale is 0.5, adjust if needed
+            final_actions[i] = scaled_actions[i] + default_dof_pos_reorder_[i];
+            // Assuming action_scale is 0.5, adjust if needed
         }
 
         for (int i = 12; i < 16; i++) {
@@ -270,13 +306,12 @@ bool RLController::step(Vec23<double>* joint_q, Vec22<double>* joint_qd, Vec3<do
         }
 
 
-
         // tweak order:
-        desired_positions.segment<3>(0) = final_actions.segment<3>(6);  // FR leg
-        desired_positions.segment<3>(3) = final_actions.segment<3>(0);  // FL leg
-        desired_positions.segment<3>(6) = final_actions.segment<3>(9);  // RR leg
-        desired_positions.segment<3>(9) = final_actions.segment<3>(3);  // RL leg
-        desired_positions[12] = final_actions[14];  // whl
+        desired_positions.segment<3>(0) = final_actions.segment<3>(6); // FR leg
+        desired_positions.segment<3>(3) = final_actions.segment<3>(0); // FL leg
+        desired_positions.segment<3>(6) = final_actions.segment<3>(9); // RR leg
+        desired_positions.segment<3>(9) = final_actions.segment<3>(3); // RL leg
+        desired_positions[12] = final_actions[14]; // whl
         desired_positions[13] = final_actions[12];
         desired_positions[14] = final_actions[15];
         desired_positions[15] = final_actions[13];
@@ -297,15 +332,20 @@ bool RLController::stop() {
     return true;
 }
 
-bool RLController::loadPolicy(const std::string& policy_path) {
-    // 1. Initialize ONNX Runtime environment 
+bool RLController::loadPolicy(const std::string &policy_path) {
+    // 1. Initialize ONNX Runtime environment
     env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "PolicyInference");
     session_options_ = std::make_unique<Ort::SessionOptions>();
-    
+
     // (Optional) Enable CUDA if available
     // Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(*session_options_, 0));
 
     // 2. Load the ONNX model
-    session_ = std::make_unique<Ort::Session>(*env_, policy_path.c_str(), *session_options_);
+    bool use_onnx = false;
+    if (use_onnx) {
+        session_ = std::make_unique<Ort::Session>(*env_, policy_path.c_str(), *session_options_);
+    } else {
+        model_ = torch::jit::load(policy_path);
+    }
     return true;
 }
